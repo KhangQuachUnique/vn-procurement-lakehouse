@@ -1,10 +1,57 @@
-# Python-generated files
+# =========================
+# Python
+# =========================
 __pycache__/
-*.py[oc]
+*.py[cod]
+*.egg-info/
 build/
 dist/
 wheels/
-*.egg-info
 
-# Virtual environments
-.venv
+# =========================
+# Virtual environment
+# =========================
+.venv/
+
+# =========================
+# Environment & Secrets
+# =========================
+.env
+.env.*
+!.env.example
+
+# =========================
+# Testing & Coverage
+# =========================
+.pytest_cache/
+.pytest_tmp/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+.tox/
+.nox/
+
+# =========================
+# Linting & Type Checking
+# =========================
+.ruff_cache/
+.mypy_cache/
+.pyright/
+
+# =========================
+# Local Data & Logs
+# =========================
+data/
+*.log
+
+# =========================
+# IDE & OS
+# =========================
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+
+.idea/
+.DS_Store
+Thumbs.db
