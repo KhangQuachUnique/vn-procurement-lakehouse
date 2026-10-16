@@ -160,3 +160,34 @@ def test_run_repository_complete_if_running(
     finally:
         with db_session_factory.begin() as session:
             session.execute(delete(IngestionRunRow).where(IngestionRunRow.run_id == run.run_id))
+
+
+def test_run_repository_fail_with_error_message(
+    db_session_factory: sessionmaker[Session],
+) -> None:
+    repository = PostgresRunRepository(db_session_factory)
+    start_date = date(2026, 6, 28)
+
+    run = IngestionRun(
+        run_id=uuid4(),
+        window=IngestionWindow(
+            resource="tbmt",
+            start_date=start_date,
+            end_date_exclusive=start_date + timedelta(days=1),
+        ),
+    )
+
+    try:
+        repository.create(run)
+        run.start()
+        run.fail(error_message="HTTP 500: Database connection error")
+        repository.update(run)
+
+        stored = repository.get(run.run_id)
+        assert stored is not None
+        assert stored.status == RunStatus.FAILED
+        assert stored.error_message == "HTTP 500: Database connection error"
+    finally:
+        with db_session_factory.begin() as session:
+            session.execute(delete(IngestionRunRow).where(IngestionRunRow.run_id == run.run_id))
+

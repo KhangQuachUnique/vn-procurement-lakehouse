@@ -21,6 +21,7 @@ class PostgresRunRepository:
             end_date_exclusive=run.window.end_date_exclusive,
             status=run.status.value,
             record_count=run.records_ingested,
+            error_message=run.error_message,
         )
 
         with self._session_factory.begin() as session:
@@ -34,6 +35,7 @@ class PostgresRunRepository:
 
             row.status = run.status.value
             row.record_count = run.records_ingested
+            row.error_message = run.error_message
 
     def get(self, run_id: UUID) -> IngestionRun | None:
         with self._session_factory() as session:
@@ -52,6 +54,7 @@ class PostgresRunRepository:
                 window=window,
                 status=RunStatus(row.status),
                 records_ingested=row.record_count,
+                error_message=row.error_message,
             )
 
     def list_by_window(
@@ -80,6 +83,7 @@ class PostgresRunRepository:
                     window=window,
                     status=RunStatus(row.status),
                     records_ingested=row.record_count,
+                    error_message=row.error_message,
                 )
                 runs.append(run)
 

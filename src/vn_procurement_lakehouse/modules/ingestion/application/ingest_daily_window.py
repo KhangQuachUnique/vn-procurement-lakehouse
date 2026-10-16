@@ -83,8 +83,8 @@ class IngestDailyWindow:
             records = _counted_records() if on_record else self.source.fetch(window)
             published_batch = self.writer.write(window, records, run_id=run.run_id)
 
-        except Exception:
-            run.fail()
+        except Exception as exc:
+            run.fail(error_message=str(exc))
 
             try:
                 self.run_repository.update(run)

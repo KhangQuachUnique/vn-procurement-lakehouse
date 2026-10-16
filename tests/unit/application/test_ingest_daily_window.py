@@ -64,6 +64,9 @@ def test_source_failure_marks_run_failed(sample_window: IngestionWindow) -> None
 
     repository.create.assert_called_once()
     assert repository.update.call_count == 2
+    failed_run = repository.update.call_args[0][0]
+    assert failed_run.status == RunStatus.FAILED
+    assert failed_run.error_message == "API unavailable"
     writer.write.assert_not_called()
 
 
@@ -93,6 +96,8 @@ def test_writer_failure_marks_run_failed(sample_window: IngestionWindow) -> None
         RunStatus.IN_PROGRESS,
         RunStatus.FAILED,
     ]
+    failed_run = repository.update.call_args[0][0]
+    assert failed_run.error_message == "Bronze storage unavailable"
     source.fetch.assert_called_once_with(sample_window)
     writer.write.assert_called_once()
 

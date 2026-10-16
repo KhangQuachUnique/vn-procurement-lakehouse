@@ -39,6 +39,25 @@ class SourceResponseError(ValueError):
     """API returned an unexpected JSON response."""
 
 
+def raise_for_status_with_detail(response: httpx.Response) -> None:
+    try:
+        response.raise_for_status()
+    except httpx.HTTPStatusError as exc:
+        body_preview = exc.response.text.strip()
+        if len(body_preview) > 500:
+            body_preview = body_preview[:500] + "... [truncated]"
+        message = (
+            f"Muasamcong HTTP {exc.response.status_code} Error: "
+            f"{body_preview or '<empty response body>'} "
+            f"(URL: {exc.request.url})"
+        )
+        raise httpx.HTTPStatusError(
+            message,
+            request=exc.request,
+            response=exc.response,
+        ) from exc
+
+
 def parse_retry_after(value: str | None) -> float | None:
     if value is None:
         return None
@@ -180,7 +199,7 @@ class MuasamcongClient:
                     self._budget.defer(self._retry_policy.base_delay_seconds)
 
                 if server_delay is not None and server_delay > self._retry_policy.max_delay_seconds:
-                    response.raise_for_status()
+                    raise_for_status_with_detail(response)
 
                 delay = max(
                     self._backoff(attempt),
@@ -190,7 +209,7 @@ class MuasamcongClient:
                 self._sleep(delay)
                 continue
 
-            response.raise_for_status()
+            raise_for_status_with_detail(response)
 
             try:
                 return response.json()

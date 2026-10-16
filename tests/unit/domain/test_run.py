@@ -41,6 +41,14 @@ def test_fail_transition(sample_run: IngestionRun) -> None:
     sample_run.start()
     sample_run.fail()
     assert sample_run.status == RunStatus.FAILED
+    assert sample_run.error_message is None
+
+
+def test_fail_with_error_message(sample_run: IngestionRun) -> None:
+    sample_run.start()
+    sample_run.fail(error_message="Connection refused")
+    assert sample_run.status == RunStatus.FAILED
+    assert sample_run.error_message == "Connection refused"
 
 
 def test_fail_from_pending_raises(sample_run: IngestionRun) -> None:

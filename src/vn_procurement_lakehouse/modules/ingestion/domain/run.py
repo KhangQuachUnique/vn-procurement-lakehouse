@@ -19,6 +19,7 @@ class IngestionRun:
     window: IngestionWindow
     status: RunStatus = RunStatus.PENDING
     records_ingested: int | None = None
+    error_message: str | None = None
 
     def start(self) -> None:
         if self.status != RunStatus.PENDING:
@@ -34,7 +35,8 @@ class IngestionRun:
         self.status = RunStatus.COMPLETED
         self.records_ingested = records_ingested
 
-    def fail(self) -> None:
+    def fail(self, error_message: str | None = None) -> None:
         if self.status != RunStatus.IN_PROGRESS:
             raise ValueError("Run can only be failed from IN_PROGRESS status.")
         self.status = RunStatus.FAILED
+        self.error_message = error_message
