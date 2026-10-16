@@ -58,3 +58,24 @@ def test_ingest_date_range_executes_each_day() -> None:
     assert results[date(2026, 6, 1)] == batch_day1
     assert results[date(2026, 6, 2)] == batch_day2
     assert ingest_daily_mock.execute.call_count == 2
+
+
+def test_ingest_date_range_passes_force_and_on_record() -> None:
+    ingest_daily_mock = MagicMock()
+    batch = PublishedBatch(run_id=uuid4(), record_count=5, storage_uri="s3://1")
+    ingest_daily_mock.execute.return_value = batch
+
+    service = IngestDateRange(ingest_daily=ingest_daily_mock)
+    mock_on_record = MagicMock()
+    service.execute(
+        resource="tbmt",
+        start_date=date(2026, 6, 1),
+        end_date_exclusive=date(2026, 6, 2),
+        force=True,
+        on_record=mock_on_record,
+    )
+
+    ingest_daily_mock.execute.assert_called_once()
+    _, kwargs = ingest_daily_mock.execute.call_args
+    assert kwargs.get("force") is True
+    assert kwargs.get("on_record") is mock_on_record

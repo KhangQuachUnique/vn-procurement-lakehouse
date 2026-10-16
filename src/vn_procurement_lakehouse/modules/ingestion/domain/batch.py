@@ -7,3 +7,4 @@ class PublishedBatch:
     run_id: UUID
     record_count: int
     storage_uri: str
+    skipped: bool = False

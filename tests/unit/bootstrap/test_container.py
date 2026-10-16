@@ -1,9 +1,11 @@
 from unittest.mock import MagicMock, patch
 
 from vn_procurement_lakehouse.bootstrap.container import (
+    CoverageService,
     IngestionService,
     RecoverIngestionRunService,
     VerifyBronzeService,
+    coverage_scope,
     ingestion_scope,
     recover_ingestion_scope,
     verify_bronze_scope,
@@ -86,3 +88,17 @@ def test_recover_ingestion_scope_wires_and_disposes(mock_create_engine: MagicMoc
         assert isinstance(service.recover_ingestion_run.run_repository, PostgresRunRepository)
 
     mock_engine.dispose.assert_called_once()
+
+
+@patch("vn_procurement_lakehouse.bootstrap.container.create_engine")
+def test_coverage_scope_wires_and_disposes(mock_create_engine: MagicMock) -> None:
+    mock_engine = MagicMock()
+    mock_create_engine.return_value = mock_engine
+
+    with coverage_scope() as service:
+        assert isinstance(service, CoverageService)
+        assert isinstance(service.data_coverage.bronze, LocalBronzeWriter)
+        assert isinstance(service.data_coverage.repository, PostgresRunRepository)
+
+    mock_engine.dispose.assert_called_once()
+

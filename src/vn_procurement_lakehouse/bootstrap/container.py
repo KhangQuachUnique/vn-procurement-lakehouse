@@ -53,6 +53,9 @@ from vn_procurement_lakehouse.modules.ingestion.adapters.muasamcong.tbmt_source 
 from vn_procurement_lakehouse.modules.ingestion.adapters.postgres.run_repository import (
     PostgresRunRepository,
 )
+from vn_procurement_lakehouse.modules.ingestion.application.get_data_coverage import (
+    GetDataCoverage,
+)
 from vn_procurement_lakehouse.modules.ingestion.application.ingest_daily_range import (
     IngestDateRange,
 )
@@ -79,6 +82,11 @@ class VerifyBronzeService:
 @dataclass(frozen=True)
 class RecoverIngestionRunService:
     recover_ingestion_run: RecoverIngestionRun
+
+
+@dataclass(frozen=True)
+class CoverageService:
+    data_coverage: GetDataCoverage
 
 
 @contextmanager
@@ -229,3 +237,28 @@ def recover_ingestion_scope() -> Generator[RecoverIngestionRunService]:
         )
     finally:
         engine.dispose()
+
+
+@contextmanager
+def coverage_scope() -> Generator[CoverageService]:
+    settings = load_settings()
+
+    engine = create_engine(settings.database_url, pool_pre_ping=True)
+
+    try:
+        session_factory = sessionmaker(bind=engine, expire_on_commit=False)
+        run_repository = PostgresRunRepository(session_factory=session_factory)
+
+        writer = LocalBronzeWriter(base_path=settings.bronze_base_path)
+
+        data_coverage = GetDataCoverage(
+            repository=run_repository,
+            bronze=writer,
+        )
+
+        yield CoverageService(
+            data_coverage=data_coverage,
+        )
+    finally:
+        engine.dispose()
+

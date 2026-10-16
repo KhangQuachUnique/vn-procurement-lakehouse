@@ -3,8 +3,12 @@ from typing import Annotated
 from uuid import UUID
 
 import typer
+from rich.console import Console
+from rich.progress import Progress, SpinnerColumn, TextColumn, TimeElapsedColumn
+from rich.table import Table
 
 from vn_procurement_lakehouse.bootstrap.container import (
+    coverage_scope,
     ingestion_scope,
     recover_ingestion_scope,
     verify_bronze_scope,
@@ -48,6 +52,9 @@ def parse_date(date_str: str) -> date:
 def ingest(
     resource: Annotated[str, typer.Argument(callback=validate_resource)],
     day: Annotated[str, typer.Option("--date")],
+    force: Annotated[
+        bool, typer.Option("--force", help="Force re-ingest even if already verified")
+    ] = False,
 ) -> None:
     parsed_date = parse_date(day)
 
@@ -57,14 +64,35 @@ def ingest(
         end_date_exclusive=parsed_date + timedelta(days=1),
     )
 
+    console = Console()
     with ingestion_scope() as service:
-        typer.echo(f"Ingesting data for resource '{resource}' on {parsed_date.isoformat()}...")
-        batch = service.ingestion_daily.execute(window)
+        with Progress(
+            SpinnerColumn(),
+            TextColumn(f"[{resource} {parsed_date.isoformat()}]"),
+            TextColumn("{task.description}"),
+            TextColumn("• {task.completed} records"),
+            TimeElapsedColumn(),
+            console=console,
+            transient=True,
+        ) as progress:
+            task = progress.add_task("Ingesting...", total=None)
+            batch = service.ingestion_daily.execute(
+                window,
+                force=force,
+                on_record=lambda count: progress.update(task, completed=count),
+            )
 
-    typer.echo(f"Ingested {batch.record_count} records for {parsed_date}")
-
-    typer.echo(f"Run ID: {batch.run_id}")
-    typer.echo(f"Bronze: {batch.storage_uri}")
+    if batch.skipped:
+        typer.echo(
+            f"[SKIP] Resource '{resource}' on {parsed_date} already verified.\n"
+            f"Run ID: {batch.run_id}\n"
+            f"Bronze: {batch.storage_uri}\n"
+            f"Use --force to re-ingest."
+        )
+    else:
+        typer.echo(f"Ingested {batch.record_count} records for {parsed_date}")
+        typer.echo(f"Run ID: {batch.run_id}")
+        typer.echo(f"Bronze: {batch.storage_uri}")
 
 
 @app.command(name="ingest-range", help="Ingest data for a range of dates into the lakehouse")
@@ -72,6 +100,9 @@ def ingest_range(
     resource: Annotated[str, typer.Argument(callback=validate_resource)],
     start: Annotated[str, typer.Option("--start")],
     end: Annotated[str, typer.Option("--end")],
+    force: Annotated[
+        bool, typer.Option("--force", help="Force re-ingest even if already verified")
+    ] = False,
 ) -> None:
     start_date = parse_date(start)
     end_date = parse_date(end)
@@ -81,13 +112,33 @@ def ingest_range(
             f"Start date {start_date.isoformat()} must be before end date {end_date.isoformat()}."
         )
 
+    console = Console()
     with ingestion_scope() as service:
-        results = service.ingestion_range.execute(resource, start_date, end_date)
+        with Progress(
+            SpinnerColumn(),
+            TextColumn(f"[{resource}]"),
+            TextColumn("{task.description}"),
+            TextColumn("• {task.completed} records"),
+            TimeElapsedColumn(),
+            console=console,
+            transient=True,
+        ) as progress:
+            task = progress.add_task(f"Ingesting {start_date} to {end_date}...", total=None)
+
+            def _on_record(count: int) -> None:
+                progress.update(task, completed=count)
+
+            results = service.ingestion_range.execute(
+                resource, start_date, end_date, force=force, on_record=_on_record
+            )
 
     for day, batch in results.items():
-        typer.echo(f"Ingested {batch.record_count} records for {day}")
-        typer.echo(f"Run ID: {batch.run_id}")
-        typer.echo(f"Bronze: {batch.storage_uri}")
+        if batch.skipped:
+            typer.echo(f"[SKIP] {day}: already verified (Run ID: {batch.run_id})")
+        else:
+            typer.echo(f"Ingested {batch.record_count} records for {day}")
+            typer.echo(f"Run ID: {batch.run_id}")
+            typer.echo(f"Bronze: {batch.storage_uri}")
 
 
 @app.command(name="bronze-verify-run", help="Verify ingested data in the lakehouse")
@@ -158,3 +209,66 @@ def bronze_recover(
 
     typer.echo("Recovery successful: IN_PROGRESS -> COMPLETED")
     typer.echo(f"Record count: {verification.record_count}")
+
+
+@app.command(name="coverage", help="Check data coverage for a resource across a date range")
+def coverage(
+    resource: Annotated[str, typer.Argument(callback=validate_resource)],
+    start: Annotated[str, typer.Option("--start")],
+    end: Annotated[str, typer.Option("--end")],
+    missing_only: Annotated[
+        bool, typer.Option("--missing-only", help="Show only missing or failed days")
+    ] = False,
+) -> None:
+    start_date = parse_date(start)
+    end_date = parse_date(end)
+
+    if start_date >= end_date:
+        raise typer.BadParameter(
+            f"Start date {start_date.isoformat()} must be before end date {end_date.isoformat()}."
+        )
+
+    console = Console()
+    with coverage_scope() as service:
+        report = service.data_coverage.execute(
+            resource, start_date, end_date, missing_only=missing_only
+        )
+
+    table = Table(title=f"Bronze Data Coverage: {resource.upper()} ({start_date} -> {end_date})")
+    table.add_column("Date", style="cyan", no_wrap=True)
+    table.add_column("Status", justify="center")
+    table.add_column("Records", justify="right")
+    table.add_column("Run ID", style="dim")
+    table.add_column("Storage URI", style="dim")
+
+    for day in report.days:
+        if day.status == "VERIFIED":
+            status_display = "[green]VERIFIED[/green]"
+        elif day.status == "FAILED":
+            status_display = "[red]FAILED[/red]"
+        elif day.status == "MISSING":
+            status_display = "[dim red]MISSING[/dim red]"
+        elif day.status == "IN_PROGRESS":
+            status_display = "[yellow]IN_PROGRESS[/yellow]"
+        else:
+            status_display = day.status
+
+        records_display = str(day.record_count) if day.record_count is not None else "-"
+        run_id_display = str(day.run_id) if day.run_id else "-"
+        storage_display = str(day.storage_uri) if day.storage_uri else "-"
+
+        table.add_row(
+            day.date.isoformat(),
+            status_display,
+            records_display,
+            run_id_display,
+            storage_display,
+        )
+
+    console.print(table)
+    console.print(
+        f"[bold]Summary:[/bold] {report.total_days} total days | "
+        f"[green]{report.verified_days} verified[/green] | "
+        f"[dim red]{report.missing_days} missing[/dim red] | "
+        f"[red]{report.failed_days} failed[/red]"
+    )

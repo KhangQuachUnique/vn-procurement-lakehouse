@@ -1,14 +1,18 @@
 import logging
+from collections.abc import Callable, Iterator
+from pathlib import Path
 from uuid import uuid4
 
 from vn_procurement_lakehouse.modules.ingestion.application.ports import (
     BronzePort,
+    RawPayload,
     RunRepositoryPort,
     SourcePort,
 )
 from vn_procurement_lakehouse.modules.ingestion.domain.batch import PublishedBatch
 from vn_procurement_lakehouse.modules.ingestion.domain.models import IngestionWindow
-from vn_procurement_lakehouse.modules.ingestion.domain.run import IngestionRun
+from vn_procurement_lakehouse.modules.ingestion.domain.run import IngestionRun, RunStatus
+from vn_procurement_lakehouse.modules.ingestion.domain.verifications import VerificationStatus
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +25,42 @@ class IngestDailyWindow:
         self.writer = writer
         self.run_repository = run_repository
 
-    def execute(self, window: IngestionWindow) -> PublishedBatch:
+    def execute(
+        self,
+        window: IngestionWindow,
+        *,
+        force: bool = False,
+        on_record: Callable[[int], None] | None = None,
+    ) -> PublishedBatch:
+        if not force:
+            existing_runs = self.run_repository.list_by_window(
+                window.resource, window.start_date, window.end_date_exclusive
+            )
+            for existing_run in existing_runs:
+                if existing_run.status == RunStatus.COMPLETED:
+                    verification = self.writer.verify(existing_run)
+                    if verification.status == VerificationStatus.VERIFIED:
+                        base_path = Path(getattr(self.writer, "base_path", "data/bronze"))
+                        storage_uri = str(
+                            base_path
+                            / window.resource
+                            / f"date={window.start_date.isoformat()}"
+                            / "runs"
+                            / str(existing_run.run_id)
+                            / "part-000.jsonl"
+                        )
+                        record_count = (
+                            verification.record_count
+                            if verification.record_count is not None
+                            else (existing_run.records_ingested or 0)
+                        )
+                        return PublishedBatch(
+                            run_id=existing_run.run_id,
+                            record_count=record_count,
+                            storage_uri=storage_uri,
+                            skipped=True,
+                        )
+
         run = IngestionRun(
             run_id=uuid4(),
             window=window,
@@ -32,8 +71,16 @@ class IngestDailyWindow:
         run.start()
         self.run_repository.update(run)
 
+        def _counted_records() -> Iterator[RawPayload]:
+            count = 0
+            for record in self.source.fetch(window):
+                count += 1
+                if on_record is not None:
+                    on_record(count)
+                yield record
+
         try:
-            records = self.source.fetch(window)
+            records = _counted_records() if on_record else self.source.fetch(window)
             published_batch = self.writer.write(window, records, run_id=run.run_id)
 
         except Exception:

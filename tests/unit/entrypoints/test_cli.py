@@ -1,10 +1,15 @@
 from contextlib import contextmanager
+from datetime import date
 from unittest.mock import MagicMock, patch
 from uuid import uuid4
 
 from typer.testing import CliRunner
 
 from vn_procurement_lakehouse.entrypoints.cli import app
+from vn_procurement_lakehouse.modules.ingestion.application.get_data_coverage import (
+    CoverageReport,
+    DayCoverage,
+)
 from vn_procurement_lakehouse.modules.ingestion.domain.batch import PublishedBatch
 from vn_procurement_lakehouse.modules.ingestion.domain.verifications import (
     VerificationResult,
@@ -194,3 +199,96 @@ def test_recover_cancelled_by_user() -> None:
 
     assert result.exit_code == 0
     assert "Recovery cancelled." in result.output
+
+
+def test_ingest_skipped() -> None:
+    mock_batch = PublishedBatch(
+        run_id=uuid4(),
+        record_count=10,
+        storage_uri="local:///data/test.jsonl",
+        skipped=True,
+    )
+    mock_service = MagicMock()
+    mock_service.ingestion_daily.execute.return_value = mock_batch
+
+    @contextmanager
+    def fake_scope():
+        yield mock_service
+
+    with patch("vn_procurement_lakehouse.entrypoints.cli.ingestion_scope", fake_scope):
+        result = runner.invoke(app, ["ingest", "project", "--date", "2026-06-19"])
+
+    assert result.exit_code == 0
+    assert "[SKIP]" in result.output
+    assert "already verified" in result.output
+    assert str(mock_batch.run_id) in result.output
+
+
+def test_ingest_with_force() -> None:
+    mock_batch = PublishedBatch(
+        run_id=uuid4(),
+        record_count=10,
+        storage_uri="local:///data/test.jsonl",
+        skipped=False,
+    )
+    mock_service = MagicMock()
+    mock_service.ingestion_daily.execute.return_value = mock_batch
+
+    @contextmanager
+    def fake_scope():
+        yield mock_service
+
+    with patch("vn_procurement_lakehouse.entrypoints.cli.ingestion_scope", fake_scope):
+        result = runner.invoke(app, ["ingest", "project", "--date", "2026-06-19", "--force"])
+
+    assert result.exit_code == 0
+    assert "Ingested 10 records" in result.output
+    _, kwargs = mock_service.ingestion_daily.execute.call_args
+    assert kwargs.get("force") is True
+
+
+def test_coverage_command() -> None:
+    run_id = uuid4()
+    mock_report = CoverageReport(
+        resource="tbmt",
+        start_date=date(2026, 6, 1),
+        end_date_exclusive=date(2026, 6, 3),
+        days=[
+            DayCoverage(
+                date=date(2026, 6, 1),
+                status="VERIFIED",
+                record_count=15,
+                run_id=run_id,
+                storage_uri="local:///bronze/tbmt/date=2026-06-01",
+            ),
+            DayCoverage(
+                date=date(2026, 6, 2),
+                status="MISSING",
+                record_count=None,
+                run_id=None,
+                storage_uri=None,
+            ),
+        ],
+    )
+    mock_service = MagicMock()
+    mock_service.data_coverage.execute.return_value = mock_report
+
+    @contextmanager
+    def fake_scope():
+        yield mock_service
+
+    with patch("vn_procurement_lakehouse.entrypoints.cli.coverage_scope", fake_scope):
+        result = runner.invoke(
+            app, ["coverage", "tbmt", "--start", "2026-06-01", "--end", "2026-06-03"]
+        )
+
+    assert result.exit_code == 0
+    assert "Bronze Data Coverage: TBMT" in result.output
+    assert "2026-06-01" in result.output
+    assert "VERIFIED" in result.output
+    assert "2026-06-02" in result.output
+    assert "MISSING" in result.output
+    assert "Summary:" in result.output
+    assert "1 verified" in result.output
+    assert "1 missing" in result.output
+
