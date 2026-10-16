@@ -6,11 +6,8 @@ from uuid import uuid4
 from typer.testing import CliRunner
 
 from vn_procurement_lakehouse.entrypoints.cli import app
-from vn_procurement_lakehouse.modules.ingestion.application.get_data_coverage import (
-    CoverageReport,
-    DayCoverage,
-)
 from vn_procurement_lakehouse.modules.ingestion.domain.batch import PublishedBatch
+from vn_procurement_lakehouse.modules.ingestion.domain.coverage import DayCoverage
 from vn_procurement_lakehouse.modules.ingestion.domain.verifications import (
     VerificationResult,
     VerificationStatus,
@@ -249,29 +246,24 @@ def test_ingest_with_force() -> None:
 
 def test_coverage_command() -> None:
     run_id = uuid4()
-    mock_report = CoverageReport(
-        resource="tbmt",
-        start_date=date(2026, 6, 1),
-        end_date_exclusive=date(2026, 6, 3),
-        days=[
-            DayCoverage(
-                date=date(2026, 6, 1),
-                status="VERIFIED",
-                record_count=15,
-                run_id=run_id,
-                storage_uri="local:///bronze/tbmt/date=2026-06-01",
-            ),
-            DayCoverage(
-                date=date(2026, 6, 2),
-                status="MISSING",
-                record_count=None,
-                run_id=None,
-                storage_uri=None,
-            ),
-        ],
-    )
+    mock_days = [
+        DayCoverage(
+            date=date(2026, 6, 1),
+            status="VERIFIED",
+            record_count=15,
+            run_id=run_id,
+            storage_uri="local:///bronze/tbmt/date=2026-06-01",
+        ),
+        DayCoverage(
+            date=date(2026, 6, 2),
+            status="MISSING",
+            record_count=None,
+            run_id=None,
+            storage_uri=None,
+        ),
+    ]
     mock_service = MagicMock()
-    mock_service.data_coverage.execute.return_value = mock_report
+    mock_service.data_coverage.execute.return_value = mock_days
 
     @contextmanager
     def fake_scope():

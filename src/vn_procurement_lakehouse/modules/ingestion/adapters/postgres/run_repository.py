@@ -5,8 +5,8 @@ from sqlalchemy import update
 from sqlalchemy.orm import Session, sessionmaker
 
 from vn_procurement_lakehouse.modules.ingestion.adapters.postgres.models import IngestionRunRow
-from vn_procurement_lakehouse.modules.ingestion.domain.models import IngestionWindow
 from vn_procurement_lakehouse.modules.ingestion.domain.run import IngestionRun, RunStatus
+from vn_procurement_lakehouse.modules.ingestion.domain.window import IngestionWindow
 
 
 class PostgresRunRepository:

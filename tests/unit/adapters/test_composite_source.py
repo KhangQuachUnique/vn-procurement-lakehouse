@@ -8,7 +8,7 @@ from vn_procurement_lakehouse.modules.ingestion.adapters.composite_source import
     normalize_resource_name,
 )
 from vn_procurement_lakehouse.modules.ingestion.application.ports import SourcePort
-from vn_procurement_lakehouse.modules.ingestion.domain.models import IngestionWindow
+from vn_procurement_lakehouse.modules.ingestion.domain.window import IngestionWindow
 
 
 @pytest.fixture

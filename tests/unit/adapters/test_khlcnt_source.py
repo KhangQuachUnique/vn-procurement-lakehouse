@@ -20,7 +20,7 @@ from vn_procurement_lakehouse.modules.ingestion.application.ingest_daily_window 
 )
 from vn_procurement_lakehouse.modules.ingestion.application.ports import SourcePort
 from vn_procurement_lakehouse.modules.ingestion.domain.batch import PublishedBatch
-from vn_procurement_lakehouse.modules.ingestion.domain.models import IngestionWindow
+from vn_procurement_lakehouse.modules.ingestion.domain.window import IngestionWindow
 
 
 def make_search_page(

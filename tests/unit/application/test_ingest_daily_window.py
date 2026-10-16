@@ -7,12 +7,12 @@ from vn_procurement_lakehouse.modules.ingestion.application.ingest_daily_window 
     IngestDailyWindow,
 )
 from vn_procurement_lakehouse.modules.ingestion.domain.batch import PublishedBatch
-from vn_procurement_lakehouse.modules.ingestion.domain.models import IngestionWindow
 from vn_procurement_lakehouse.modules.ingestion.domain.run import IngestionRun, RunStatus
 from vn_procurement_lakehouse.modules.ingestion.domain.verifications import (
     VerificationResult,
     VerificationStatus,
 )
+from vn_procurement_lakehouse.modules.ingestion.domain.window import IngestionWindow
 
 
 def test_ingest_daily_window_happy_path(sample_window: IngestionWindow) -> None:

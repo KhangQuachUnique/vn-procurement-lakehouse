@@ -3,7 +3,7 @@ from uuid import UUID
 
 from pydantic.dataclasses import dataclass
 
-from vn_procurement_lakehouse.modules.ingestion.domain.models import IngestionWindow
+from vn_procurement_lakehouse.modules.ingestion.domain.window import IngestionWindow
 
 
 class RunStatus(StrEnum):

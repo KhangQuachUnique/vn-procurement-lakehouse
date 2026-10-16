@@ -3,7 +3,7 @@ from collections.abc import Iterator
 from typing import Any
 
 from vn_procurement_lakehouse.modules.ingestion.application.ports import RawPayload
-from vn_procurement_lakehouse.modules.ingestion.domain.models import IngestionWindow
+from vn_procurement_lakehouse.modules.ingestion.domain.window import IngestionWindow
 
 from .concurrency import iter_concurrent_details
 from .tbmt_api import TbmtApi

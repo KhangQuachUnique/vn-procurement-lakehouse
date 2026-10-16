@@ -16,7 +16,7 @@ from vn_procurement_lakehouse.bootstrap.container import (
 from vn_procurement_lakehouse.modules.ingestion.adapters.composite_source import (
     normalize_resource_name,
 )
-from vn_procurement_lakehouse.modules.ingestion.domain.models import IngestionWindow
+from vn_procurement_lakehouse.modules.ingestion.domain.window import IngestionWindow
 
 app = typer.Typer(name="vn-procurement-lakehouse", help="A CLI for the VN Procurement Lakehouse")
 
@@ -230,7 +230,7 @@ def coverage(
 
     console = Console()
     with coverage_scope() as service:
-        report = service.data_coverage.execute(
+        days = service.data_coverage.execute(
             resource, start_date, end_date, missing_only=missing_only
         )
 
@@ -241,7 +241,7 @@ def coverage(
     table.add_column("Run ID", style="dim")
     table.add_column("Storage URI", style="dim")
 
-    for day in report.days:
+    for day in days:
         if day.status == "VERIFIED":
             status_display = "[green]VERIFIED[/green]"
         elif day.status == "FAILED":
@@ -265,10 +265,16 @@ def coverage(
             storage_display,
         )
 
+    total_days = len(days)
+    verified_days = sum(1 for d in days if d.status == "VERIFIED")
+    missing_days = sum(1 for d in days if d.status == "MISSING")
+    failed_days = sum(1 for d in days if d.status in ("FAILED", "CORRUPTED"))
+
     console.print(table)
     console.print(
-        f"[bold]Summary:[/bold] {report.total_days} total days | "
-        f"[green]{report.verified_days} verified[/green] | "
-        f"[dim red]{report.missing_days} missing[/dim red] | "
-        f"[red]{report.failed_days} failed[/red]"
+        f"[bold]Summary:[/bold] {total_days} total days | "
+        f"[green]{verified_days} verified[/green] | "
+        f"[dim red]{missing_days} missing[/dim red] | "
+        f"[red]{failed_days} failed[/red]"
     )
+

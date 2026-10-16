@@ -3,7 +3,7 @@ from datetime import date
 import pytest
 
 from vn_procurement_lakehouse.modules.ingestion.adapters.fake_source import FakeTenderSource
-from vn_procurement_lakehouse.modules.ingestion.domain.models import IngestionWindow
+from vn_procurement_lakehouse.modules.ingestion.domain.window import IngestionWindow
 
 
 def test_fake_tender_source_yields_tbmt() -> None:

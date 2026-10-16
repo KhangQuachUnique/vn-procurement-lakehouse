@@ -4,8 +4,8 @@ from uuid import UUID, uuid4
 import pytest
 
 from vn_procurement_lakehouse.modules.ingestion.application.ports import RawPayload
-from vn_procurement_lakehouse.modules.ingestion.domain.models import IngestionWindow
 from vn_procurement_lakehouse.modules.ingestion.domain.run import IngestionRun
+from vn_procurement_lakehouse.modules.ingestion.domain.window import IngestionWindow
 
 
 @pytest.fixture

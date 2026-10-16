@@ -17,15 +17,15 @@ from vn_procurement_lakehouse.modules.ingestion.domain.batch import (
 from vn_procurement_lakehouse.modules.ingestion.domain.manifest import (
     BronzeManifest,
 )
-from vn_procurement_lakehouse.modules.ingestion.domain.models import (
-    IngestionWindow,
-)
 from vn_procurement_lakehouse.modules.ingestion.domain.run import (
     IngestionRun,
 )
 from vn_procurement_lakehouse.modules.ingestion.domain.verifications import (
     VerificationResult,
     VerificationStatus,
+)
+from vn_procurement_lakehouse.modules.ingestion.domain.window import (
+    IngestionWindow,
 )
 
 

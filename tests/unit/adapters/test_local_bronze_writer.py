@@ -9,11 +9,11 @@ import pytest
 from vn_procurement_lakehouse.modules.ingestion.adapters.local_bronze_writer import (
     LocalBronzeWriter,
 )
-from vn_procurement_lakehouse.modules.ingestion.domain.models import (
-    IngestionWindow,
-)
 from vn_procurement_lakehouse.modules.ingestion.domain.run import IngestionRun
 from vn_procurement_lakehouse.modules.ingestion.domain.verifications import VerificationStatus
+from vn_procurement_lakehouse.modules.ingestion.domain.window import (
+    IngestionWindow,
+)
 
 
 def test_writer_publishes_manifest_and_data(tmp_path: Path) -> None:

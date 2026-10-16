@@ -4,9 +4,9 @@ from typing import Any, Protocol
 from uuid import UUID
 
 from vn_procurement_lakehouse.modules.ingestion.domain.batch import PublishedBatch
-from vn_procurement_lakehouse.modules.ingestion.domain.models import IngestionWindow
 from vn_procurement_lakehouse.modules.ingestion.domain.run import IngestionRun
 from vn_procurement_lakehouse.modules.ingestion.domain.verifications import VerificationResult
+from vn_procurement_lakehouse.modules.ingestion.domain.window import IngestionWindow
 
 RawPayload = dict[str, Any]
 

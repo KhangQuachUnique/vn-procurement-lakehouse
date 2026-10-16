@@ -2,7 +2,7 @@ from datetime import date
 
 import pytest
 
-from vn_procurement_lakehouse.modules.ingestion.domain.models import IngestionWindow
+from vn_procurement_lakehouse.modules.ingestion.domain.window import IngestionWindow
 
 
 def test_valid_window() -> None:
@@ -27,7 +27,7 @@ def test_empty_resource() -> None:
 
 
 def test_invalid_date_range() -> None:
-    with pytest.raises(ValueError, match="Start date must be before end date."):
+    with pytest.raises(ValueError, match="Start date must be before end date"):
         IngestionWindow(
             resource="tbmt",
             start_date=date(2026, 6, 20),
@@ -36,7 +36,7 @@ def test_invalid_date_range() -> None:
 
 
 def test_equal_date_range() -> None:
-    with pytest.raises(ValueError, match="Start date must be before end date."):
+    with pytest.raises(ValueError, match="Start date must be before end date"):
         IngestionWindow(
             resource="tbmt",
             start_date=date(2026, 6, 20),

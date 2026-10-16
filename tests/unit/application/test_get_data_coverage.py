@@ -8,12 +8,12 @@ from vn_procurement_lakehouse.modules.ingestion.application.get_data_coverage im
     GetDataCoverage,
     iter_dates,
 )
-from vn_procurement_lakehouse.modules.ingestion.domain.models import IngestionWindow
 from vn_procurement_lakehouse.modules.ingestion.domain.run import IngestionRun, RunStatus
 from vn_procurement_lakehouse.modules.ingestion.domain.verifications import (
     VerificationResult,
     VerificationStatus,
 )
+from vn_procurement_lakehouse.modules.ingestion.domain.window import IngestionWindow
 
 
 def test_iter_dates_invalid_range():
@@ -65,28 +65,24 @@ def test_get_data_coverage_mixed_statuses():
     )
 
     service = GetDataCoverage(repository=repository, bronze=bronze)
-    report = service.execute(
+    days = service.execute(
         resource="kqlcnt",
         start_date=date(2026, 6, 1),
         end_date_exclusive=date(2026, 6, 4),  # Day 3 is missing!
     )
 
-    assert report.resource == "kqlcnt"
-    assert report.total_days == 3
-    assert report.verified_days == 1
-    assert report.failed_days == 1
-    assert report.missing_days == 1
+    assert len(days) == 3
 
-    assert report.days[0].date == date(2026, 6, 1)
-    assert report.days[0].status == "VERIFIED"
-    assert report.days[0].record_count == 15
-    assert report.days[0].run_id == run_day1.run_id
+    assert days[0].date == date(2026, 6, 1)
+    assert days[0].status == "VERIFIED"
+    assert days[0].record_count == 15
+    assert days[0].run_id == run_day1.run_id
 
-    assert report.days[1].date == date(2026, 6, 2)
-    assert report.days[1].status == "FAILED"
+    assert days[1].date == date(2026, 6, 2)
+    assert days[1].status == "FAILED"
 
-    assert report.days[2].date == date(2026, 6, 3)
-    assert report.days[2].status == "MISSING"
+    assert days[2].date == date(2026, 6, 3)
+    assert days[2].status == "MISSING"
 
 
 def test_get_data_coverage_missing_only():
@@ -111,13 +107,13 @@ def test_get_data_coverage_missing_only():
     )
 
     service = GetDataCoverage(repository=repository, bronze=bronze)
-    report = service.execute(
+    days = service.execute(
         resource="kqlcnt",
         start_date=date(2026, 6, 1),
         end_date_exclusive=date(2026, 6, 3),  # Day 2 missing
         missing_only=True,
     )
 
-    assert len(report.days) == 1
-    assert report.days[0].date == date(2026, 6, 2)
-    assert report.days[0].status == "MISSING"
+    assert len(days) == 1
+    assert days[0].date == date(2026, 6, 2)
+    assert days[0].status == "MISSING"

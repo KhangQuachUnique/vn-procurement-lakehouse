@@ -1,13 +1,12 @@
 from collections.abc import Iterator
-from dataclasses import dataclass
 from datetime import date, timedelta
 from pathlib import Path
-from uuid import UUID
 
 from vn_procurement_lakehouse.modules.ingestion.application.ports import (
     BronzePort,
     RunRepositoryPort,
 )
+from vn_procurement_lakehouse.modules.ingestion.domain.coverage import DayCoverage
 from vn_procurement_lakehouse.modules.ingestion.domain.run import IngestionRun, RunStatus
 from vn_procurement_lakehouse.modules.ingestion.domain.verifications import VerificationStatus
 
@@ -19,39 +18,6 @@ def iter_dates(start_date: date, end_date_exclusive: date) -> Iterator[date]:
     while current < end_date_exclusive:
         yield current
         current += timedelta(days=1)
-
-
-@dataclass(frozen=True, slots=True)
-class DayCoverage:
-    date: date
-    status: str
-    record_count: int | None
-    run_id: UUID | None
-    storage_uri: str | None
-
-
-@dataclass(frozen=True, slots=True)
-class CoverageReport:
-    resource: str
-    start_date: date
-    end_date_exclusive: date
-    days: list[DayCoverage]
-
-    @property
-    def total_days(self) -> int:
-        return len(self.days)
-
-    @property
-    def verified_days(self) -> int:
-        return sum(1 for d in self.days if d.status == "VERIFIED")
-
-    @property
-    def missing_days(self) -> int:
-        return sum(1 for d in self.days if d.status == "MISSING")
-
-    @property
-    def failed_days(self) -> int:
-        return sum(1 for d in self.days if d.status in ("FAILED", "CORRUPTED"))
 
 
 class GetDataCoverage:
@@ -66,7 +32,7 @@ class GetDataCoverage:
         end_date_exclusive: date,
         *,
         missing_only: bool = False,
-    ) -> CoverageReport:
+    ) -> list[DayCoverage]:
         all_runs = self.repository.list_by_window(resource, start_date, end_date_exclusive)
         runs_by_date: dict[date, list[IngestionRun]] = {}
         for run in all_runs:
@@ -150,9 +116,4 @@ class GetDataCoverage:
         if missing_only:
             days = [d for d in days if d.status in ("MISSING", "FAILED", "CORRUPTED")]
 
-        return CoverageReport(
-            resource=resource,
-            start_date=start_date,
-            end_date_exclusive=end_date_exclusive,
-            days=days,
-        )
+        return days
