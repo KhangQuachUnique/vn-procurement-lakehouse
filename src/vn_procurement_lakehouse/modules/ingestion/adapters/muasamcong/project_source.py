@@ -1,4 +1,5 @@
 from collections.abc import Iterator
+from typing import Any
 
 from vn_procurement_lakehouse.modules.ingestion.application.ports import (
     RawPayload,
@@ -7,6 +8,7 @@ from vn_procurement_lakehouse.modules.ingestion.domain.models import (
     IngestionWindow,
 )
 
+from .concurrency import iter_concurrent_details
 from .project_api import ProjectApi
 
 
@@ -20,12 +22,16 @@ class ProjectSource:
         api: ProjectApi,
         *,
         page_size: int = 50,
+        workers: int = 3,
     ) -> None:
         if page_size <= 0:
             raise ValueError("page_size must be positive")
+        if workers <= 0:
+            raise ValueError("workers must be positive")
 
         self._api = api
         self._page_size = page_size
+        self._workers = workers
 
     def fetch(
         self,
@@ -94,12 +100,20 @@ class ProjectSource:
 
                 seen_ids.add(project_id)
 
+            def _fetch_item_detail(item: dict[str, Any]) -> RawPayload:
+                project_id = item.get("id")
+                assert isinstance(project_id, str)
+
                 detail = self._api.get_project_detail(project_id)
 
                 if not isinstance(detail, dict) or not detail:
                     raise IncompleteIngestionError(f"Invalid detail for project {project_id}")
 
-                yield detail
+                return detail
+
+            yield from iter_concurrent_details(
+                page.content, _fetch_item_detail, max_workers=self._workers
+            )
 
             if len(seen_ids) > expected_total:
                 raise IncompleteIngestionError("Received more records than expected")

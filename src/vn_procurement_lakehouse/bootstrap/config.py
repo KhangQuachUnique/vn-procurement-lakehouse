@@ -30,9 +30,13 @@ class Settings(BaseSettings):
     muasamcong_write_timeout: float = Field(default=10.0, gt=0)
     muasamcong_pool_timeout: float = Field(default=5.0, gt=0)
 
+    # Concurrency and rate limiting
+    muasamcong_workers: int = Field(default=3, ge=1)
+    muasamcong_min_interval: float = Field(default=0.05, ge=0.0)
+
     # Connection pooling
-    muasamcong_max_connections: int = Field(default=2, gt=0)
-    muasamcong_max_keepalive_connections: int = Field(default=1, ge=0)
+    muasamcong_max_connections: int = Field(default=5, gt=0)
+    muasamcong_max_keepalive_connections: int = Field(default=2, ge=0)
 
     # Retry policy
     muasamcong_retry_attempts: int = Field(default=5, ge=1)

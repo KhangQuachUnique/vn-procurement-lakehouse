@@ -19,6 +19,9 @@ from vn_procurement_lakehouse.modules.ingestion.adapters.muasamcong.bid_opening_
 from vn_procurement_lakehouse.modules.ingestion.adapters.muasamcong.bid_opening_source import (
     BidOpeningSource,
 )
+from vn_procurement_lakehouse.modules.ingestion.adapters.muasamcong.budget import (
+    RequestBudget,
+)
 from vn_procurement_lakehouse.modules.ingestion.adapters.muasamcong.client import (
     MuasamcongClient,
     RetryPolicy,
@@ -89,9 +92,15 @@ def ingestion_scope() -> Generator[IngestionService]:
         settings.muasamcong_token.get_secret_value() if settings.muasamcong_token else "fakeToken"
     )
 
+    budget = RequestBudget(
+        max_inflight=settings.muasamcong_workers,
+        min_interval=settings.muasamcong_min_interval,
+    )
+
     client = MuasamcongClient(
         base_url=base_url,
         token=token,
+        budget=budget,
         timeout=httpx.Timeout(
             connect=settings.muasamcong_connect_timeout,
             read=settings.muasamcong_read_timeout,
@@ -112,20 +121,38 @@ def ingestion_scope() -> Generator[IngestionService]:
         run_repository = PostgresRunRepository(session_factory=session_factory)
 
         project_api = ProjectApi(client=client)
-        project_source = ProjectSource(api=project_api, page_size=settings.muasamcong_page_size)
+        project_source = ProjectSource(
+            api=project_api,
+            page_size=settings.muasamcong_page_size,
+            workers=settings.muasamcong_workers,
+        )
 
         khlcnt_api = KhlcntApi(client=client)
-        khlcnt_source = KhlcntSource(api=khlcnt_api, page_size=settings.muasamcong_page_size)
+        khlcnt_source = KhlcntSource(
+            api=khlcnt_api,
+            page_size=settings.muasamcong_page_size,
+            workers=settings.muasamcong_workers,
+        )
 
         tbmt_api = TbmtApi(client=client)
-        tbmt_source = TbmtSource(api=tbmt_api, page_size=settings.muasamcong_page_size)
+        tbmt_source = TbmtSource(
+            api=tbmt_api,
+            page_size=settings.muasamcong_page_size,
+            workers=settings.muasamcong_workers,
+        )
 
         kqlcnt_api = KqlcntApi(client=client)
-        kqlcnt_source = KqlcntSource(api=kqlcnt_api, page_size=settings.muasamcong_page_size)
+        kqlcnt_source = KqlcntSource(
+            api=kqlcnt_api,
+            page_size=settings.muasamcong_page_size,
+            workers=settings.muasamcong_workers,
+        )
 
         bid_opening_api = BidOpeningApi(client=client)
         bid_opening_source = BidOpeningSource(
-            api=bid_opening_api, page_size=settings.muasamcong_page_size
+            api=bid_opening_api,
+            page_size=settings.muasamcong_page_size,
+            workers=settings.muasamcong_workers,
         )
 
         source = CompositeSource(

@@ -1,9 +1,11 @@
 import logging
 from collections.abc import Iterator
+from typing import Any
 
 from vn_procurement_lakehouse.modules.ingestion.application.ports import RawPayload
 from vn_procurement_lakehouse.modules.ingestion.domain.models import IngestionWindow
 
+from .concurrency import iter_concurrent_details
 from .tbmt_api import TbmtApi
 
 logger = logging.getLogger(__name__)
@@ -19,12 +21,16 @@ class TbmtSource:
         api: TbmtApi,
         *,
         page_size: int = 50,
+        workers: int = 3,
     ) -> None:
         if page_size <= 0:
             raise ValueError("page_size must be positive")
+        if workers <= 0:
+            raise ValueError("workers must be positive")
 
         self._api = api
         self._page_size = page_size
+        self._workers = workers
 
     def fetch(
         self,
@@ -93,6 +99,10 @@ class TbmtSource:
 
                 seen_ids.add(notice_id)
 
+            def _fetch_item_detail(item: dict[str, Any]) -> RawPayload:
+                notice_id = item.get("id")
+                assert isinstance(notice_id, str)
+
                 notice_detail = self._api.get_notice_detail(item)
 
                 if not isinstance(notice_detail, dict) or not notice_detail:
@@ -102,7 +112,11 @@ class TbmtSource:
                 if "searchMetadata" not in notice_detail:
                     notice_detail["searchMetadata"] = item
 
-                yield notice_detail
+                return notice_detail
+
+            yield from iter_concurrent_details(
+                page.content, _fetch_item_detail, max_workers=self._workers
+            )
 
             if len(seen_ids) > expected_total:
                 raise IncompleteIngestionError("Received more records than expected")

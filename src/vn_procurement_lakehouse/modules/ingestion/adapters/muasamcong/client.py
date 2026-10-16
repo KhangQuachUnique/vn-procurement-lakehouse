@@ -9,6 +9,8 @@ from typing import Any, Self
 
 import httpx
 
+from .budget import RequestBudget
+
 
 @dataclass(frozen=True)
 class RetryPolicy:
@@ -82,6 +84,7 @@ class MuasamcongClient:
         verify: ssl.SSLContext | bool | str | None = None,
         transport: httpx.BaseTransport | None = None,
         sleep: Callable[[float], None] = time.sleep,
+        budget: RequestBudget | None = None,
     ) -> None:
         if not base_url.strip() or not token.strip():
             raise ValueError("base_url and token are required")
@@ -92,6 +95,11 @@ class MuasamcongClient:
         self._token = token
         self._retry_policy = retry_policy
         self._sleep = sleep
+        self._budget = (
+            budget
+            if budget is not None
+            else RequestBudget(max_inflight=3, min_interval=0.05)
+        )
 
         ssl_verify = verify if verify is not None else create_default_ssl_context()
 
@@ -119,6 +127,10 @@ class MuasamcongClient:
     def close(self) -> None:
         self._client.close()
 
+    @property
+    def budget(self) -> RequestBudget:
+        return self._budget
+
     def _backoff(self, failed_attempt: int) -> float:
         """Calculate the backoff time for a failed attempt."""
         cap = min(
@@ -138,11 +150,12 @@ class MuasamcongClient:
             self._retry_policy.max_attempts + 1,
         ):
             try:
-                response = self._client.post(
-                    path,
-                    params={"token": self._token},
-                    json=body,
-                )
+                with self._budget.request():
+                    response = self._client.post(
+                        path,
+                        params={"token": self._token},
+                        json=body,
+                    )
 
             except (
                 httpx.TimeoutException,
@@ -160,6 +173,11 @@ class MuasamcongClient:
                 and attempt < self._retry_policy.max_attempts
             ):
                 server_delay = parse_retry_after(response.headers.get("Retry-After"))
+
+                if server_delay is not None:
+                    self._budget.defer(server_delay)
+                elif response.status_code == 429:
+                    self._budget.defer(self._retry_policy.base_delay_seconds)
 
                 if server_delay is not None and server_delay > self._retry_policy.max_delay_seconds:
                     response.raise_for_status()

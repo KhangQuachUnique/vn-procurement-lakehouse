@@ -1,10 +1,12 @@
 import logging
 from collections.abc import Iterator
+from typing import Any
 
 from vn_procurement_lakehouse.modules.ingestion.application.ports import RawPayload
 from vn_procurement_lakehouse.modules.ingestion.domain.models import IngestionWindow
 
 from .bid_opening_api import BidOpeningApi
+from .concurrency import iter_concurrent_details
 
 logger = logging.getLogger(__name__)
 
@@ -19,12 +21,16 @@ class BidOpeningSource:
         api: BidOpeningApi,
         *,
         page_size: int = 50,
+        workers: int = 3,
     ) -> None:
         if page_size <= 0:
             raise ValueError("page_size must be positive")
+        if workers <= 0:
+            raise ValueError("workers must be positive")
 
         self._api = api
         self._page_size = page_size
+        self._workers = workers
 
     def fetch(
         self,
@@ -93,6 +99,10 @@ class BidOpeningSource:
 
                 seen_ids.add(opening_id)
 
+            def _fetch_item_detail(item: dict[str, Any]) -> RawPayload:
+                opening_id = item.get("notifyId") or item.get("id")
+                assert isinstance(opening_id, str)
+
                 detail = self._api.get_bid_opening_detail(item)
 
                 if not isinstance(detail, dict) or not detail:
@@ -102,7 +112,11 @@ class BidOpeningSource:
                 if "searchMetadata" not in detail:
                     detail["searchMetadata"] = item
 
-                yield detail
+                return detail
+
+            yield from iter_concurrent_details(
+                page.content, _fetch_item_detail, max_workers=self._workers
+            )
 
             if len(seen_ids) > expected_total:
                 raise IncompleteIngestionError("Received more records than expected")
