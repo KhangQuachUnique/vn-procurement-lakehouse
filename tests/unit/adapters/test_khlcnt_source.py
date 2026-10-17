@@ -244,7 +244,7 @@ def test_fetch_invalid_plan_detail_falls_back_to_search_item(
     assert records[0]["searchMetadata"]["name"] == "Plan Alpha"
 
 
-def test_fetch_plan_detail_exception_falls_back_to_search_item(
+def test_fetch_plan_detail_exception_raises(
     mock_api: MagicMock, khlcnt_window: IngestionWindow
 ) -> None:
     mock_api.search.return_value = make_search_page(
@@ -257,13 +257,8 @@ def test_fetch_plan_detail_exception_falls_back_to_search_item(
     mock_api.get_plan_detail.side_effect = RuntimeError("API down")
 
     source = KhlcntSource(mock_api)
-    records = list(source.fetch(khlcnt_window))
-
-    assert len(records) == 1
-    assert records[0]["id"] == "PLAN001"
-    assert records[0]["_detail_status"] == "ERROR"
-    assert "RuntimeError: API down" in records[0]["_detail_note"]
-    assert records[0]["_search_metadata"]["name"] == "Plan Beta"
+    with pytest.raises(RuntimeError, match="API down"):
+        list(source.fetch(khlcnt_window))
 
 
 def test_fetch_incomplete_ingestion_count_mismatch_raises(

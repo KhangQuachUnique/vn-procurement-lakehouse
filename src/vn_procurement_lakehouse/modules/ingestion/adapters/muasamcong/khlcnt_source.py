@@ -107,15 +107,7 @@ class KhlcntSource:
                 plan_id = item.get("id")
                 assert isinstance(plan_id, str)
 
-                try:
-                    plan_detail = self._api.get_plan_detail(plan_id)
-                except Exception as exc:
-                    record = dict(item)
-                    record["_detail_status"] = "ERROR"
-                    record["_detail_note"] = f"{type(exc).__name__}: {exc}"
-                    record["_search_metadata"] = item
-                    record["searchMetadata"] = item
-                    return record
+                plan_detail = self._api.get_plan_detail(plan_id)
 
                 if not isinstance(plan_detail, dict) or not plan_detail:
                     record = dict(item)

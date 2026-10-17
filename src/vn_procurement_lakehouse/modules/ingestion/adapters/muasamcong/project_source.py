@@ -104,15 +104,7 @@ class ProjectSource:
                 project_id = item.get("id")
                 assert isinstance(project_id, str)
 
-                try:
-                    detail = self._api.get_project_detail(project_id)
-                except Exception as exc:
-                    record = dict(item)
-                    record["_detail_status"] = "ERROR"
-                    record["_detail_note"] = f"{type(exc).__name__}: {exc}"
-                    record["_search_metadata"] = item
-                    record["searchMetadata"] = item
-                    return record
+                detail = self._api.get_project_detail(project_id)
 
                 if not isinstance(detail, dict) or not detail:
                     record = dict(item)

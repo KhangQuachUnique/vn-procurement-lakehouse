@@ -529,7 +529,7 @@ def test_fetch_invalid_project_detail_falls_back_to_search_item(
     assert records[0]["searchMetadata"]["name"] == "Project Alpha"
 
 
-def test_fetch_project_detail_exception_falls_back_to_search_item(
+def test_fetch_project_detail_exception_raises(
     mock_api: MagicMock, project_window: IngestionWindow
 ) -> None:
     mock_api.search.return_value = make_search_page(
@@ -544,13 +544,8 @@ def test_fetch_project_detail_exception_falls_back_to_search_item(
     mock_api.get_project_detail.side_effect = RuntimeError("Connection timeout")
 
     source = ProjectSource(mock_api, page_size=50)
-    records = list(source.fetch(project_window))
-
-    assert len(records) == 1
-    assert records[0]["id"] == "PRJ001"
-    assert records[0]["_detail_status"] == "ERROR"
-    assert "RuntimeError: Connection timeout" in records[0]["_detail_note"]
-    assert records[0]["_search_metadata"]["name"] == "Project Beta"
+    with pytest.raises(RuntimeError, match="Connection timeout"):
+        list(source.fetch(project_window))
 
 
 # --- Total Records Count Validation Tests ---

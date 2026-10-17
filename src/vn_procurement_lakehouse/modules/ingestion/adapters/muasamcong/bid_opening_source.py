@@ -103,15 +103,7 @@ class BidOpeningSource:
                 opening_id = item.get("notifyId") or item.get("id")
                 assert isinstance(opening_id, str)
 
-                try:
-                    detail = self._api.get_bid_opening_detail(item)
-                except Exception as exc:
-                    record = dict(item)
-                    record["_detail_status"] = "ERROR"
-                    record["_detail_note"] = f"{type(exc).__name__}: {exc}"
-                    record["_search_metadata"] = item
-                    record["searchMetadata"] = item
-                    return record
+                detail = self._api.get_bid_opening_detail(item)
 
                 if not isinstance(detail, dict) or not detail:
                     record = dict(item)

@@ -296,7 +296,7 @@ def test_bid_opening_source_empty_detail_falls_back_to_search_metadata(
     assert records[0]["searchMetadata"]["notifyNo"] == "IB001"
 
 
-def test_bid_opening_source_error_detail_falls_back_to_search_metadata(
+def test_bid_opening_source_error_detail_raises(
     bid_opening_window: IngestionWindow,
 ) -> None:
     api = MagicMock(spec=BidOpeningApi)
@@ -310,10 +310,5 @@ def test_bid_opening_source_error_detail_falls_back_to_search_metadata(
     api.get_bid_opening_detail.side_effect = RuntimeError("Service unavailable")
 
     source = BidOpeningSource(api=api, page_size=50)
-    records = list(source.fetch(bid_opening_window))
-
-    assert len(records) == 1
-    assert records[0]["notifyId"] == "OPEN001"
-    assert records[0]["_detail_status"] == "ERROR"
-    assert "RuntimeError: Service unavailable" in records[0]["_detail_note"]
-    assert records[0]["_search_metadata"]["notifyNo"] == "IB001"
+    with pytest.raises(RuntimeError, match="Service unavailable"):
+        list(source.fetch(bid_opening_window))

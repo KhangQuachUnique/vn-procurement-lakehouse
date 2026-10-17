@@ -103,15 +103,7 @@ class TbmtSource:
                 notice_id = item.get("id")
                 assert isinstance(notice_id, str)
 
-                try:
-                    notice_detail = self._api.get_notice_detail(item)
-                except Exception as exc:
-                    record = dict(item)
-                    record["_detail_status"] = "ERROR"
-                    record["_detail_note"] = f"{type(exc).__name__}: {exc}"
-                    record["_search_metadata"] = item
-                    record["searchMetadata"] = item
-                    return record
+                notice_detail = self._api.get_notice_detail(item)
 
                 if not isinstance(notice_detail, dict) or not notice_detail:
                     record = dict(item)

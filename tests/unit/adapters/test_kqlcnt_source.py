@@ -232,7 +232,7 @@ def test_kqlcnt_source_empty_detail_falls_back_to_search_metadata(
     assert records[0]["searchMetadata"]["notifyNo"] == "IB001"
 
 
-def test_kqlcnt_source_error_detail_falls_back_to_search_metadata(
+def test_kqlcnt_source_error_detail_raises(
     kqlcnt_window: IngestionWindow,
 ) -> None:
     api = MagicMock(spec=KqlcntApi)
@@ -246,10 +246,5 @@ def test_kqlcnt_source_error_detail_falls_back_to_search_metadata(
     api.get_result_detail.side_effect = RuntimeError("API server error")
 
     source = KqlcntSource(api=api, page_size=50)
-    records = list(source.fetch(kqlcnt_window))
-
-    assert len(records) == 1
-    assert records[0]["inputResultId"] == "RES001"
-    assert records[0]["_detail_status"] == "ERROR"
-    assert "RuntimeError: API server error" in records[0]["_detail_note"]
-    assert records[0]["_search_metadata"]["notifyNo"] == "IB001"
+    with pytest.raises(RuntimeError, match="API server error"):
+        list(source.fetch(kqlcnt_window))

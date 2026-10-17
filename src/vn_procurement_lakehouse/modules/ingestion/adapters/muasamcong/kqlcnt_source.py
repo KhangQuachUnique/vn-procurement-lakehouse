@@ -103,15 +103,7 @@ class KqlcntSource:
                 result_id = item.get("inputResultId") or item.get("id")
                 assert isinstance(result_id, str)
 
-                try:
-                    result_detail = self._api.get_result_detail(result_id)
-                except Exception as exc:
-                    record = dict(item)
-                    record["_detail_status"] = "ERROR"
-                    record["_detail_note"] = f"{type(exc).__name__}: {exc}"
-                    record["_search_metadata"] = item
-                    record["searchMetadata"] = item
-                    return record
+                result_detail = self._api.get_result_detail(result_id)
 
                 if not isinstance(result_detail, dict) or not result_detail:
                     record = dict(item)

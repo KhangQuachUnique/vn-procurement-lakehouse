@@ -269,7 +269,7 @@ def test_tbmt_source_empty_detail_falls_back_to_search_metadata(
     assert records[0]["searchMetadata"]["bidName"] == "Notice Test"
 
 
-def test_tbmt_source_error_detail_falls_back_to_search_metadata(
+def test_tbmt_source_error_detail_raises(
     tbmt_window: IngestionWindow,
 ) -> None:
     api = MagicMock(spec=TbmtApi)
@@ -283,10 +283,5 @@ def test_tbmt_source_error_detail_falls_back_to_search_metadata(
     api.get_notice_detail.side_effect = RuntimeError("Detail fetch timeout")
 
     source = TbmtSource(api=api, page_size=50)
-    records = list(source.fetch(tbmt_window))
-
-    assert len(records) == 1
-    assert records[0]["id"] == "TBMT001"
-    assert records[0]["_detail_status"] == "ERROR"
-    assert "RuntimeError: Detail fetch timeout" in records[0]["_detail_note"]
-    assert records[0]["_search_metadata"]["bidName"] == "Notice Error"
+    with pytest.raises(RuntimeError, match="Detail fetch timeout"):
+        list(source.fetch(tbmt_window))
