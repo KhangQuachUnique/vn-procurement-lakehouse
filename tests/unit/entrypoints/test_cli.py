@@ -284,3 +284,62 @@ def test_coverage_command() -> None:
     assert "1 verified" in result.output
     assert "1 missing" in result.output
 
+
+def test_ingest_range_command_success() -> None:
+    batch_day1 = PublishedBatch(
+        run_id=uuid4(),
+        record_count=10,
+        storage_uri="local:///data/1.jsonl",
+    )
+    batch_day2 = PublishedBatch(
+        run_id=uuid4(),
+        record_count=20,
+        storage_uri="local:///data/2.jsonl",
+    )
+    mock_service = MagicMock()
+    mock_service.ingestion_range.execute.return_value = {
+        date(2026, 6, 1): batch_day1,
+        date(2026, 6, 2): batch_day2,
+    }
+
+    @contextmanager
+    def fake_scope():
+        yield mock_service
+
+    with patch("vn_procurement_lakehouse.entrypoints.cli.ingestion_scope", fake_scope):
+        result = runner.invoke(
+            app, ["ingest-range", "tbmt", "--start", "2026-06-01", "--end", "2026-06-03"]
+        )
+
+    assert result.exit_code == 0
+    assert "Ingested 10 records for 2026-06-01" in result.output
+    assert "Ingested 20 records for 2026-06-02" in result.output
+    mock_service.ingestion_range.execute.assert_called_once()
+    _, kwargs = mock_service.ingestion_range.execute.call_args
+    assert kwargs.get("continue_on_error") is True
+
+
+def test_ingest_range_command_reports_failed_days_note() -> None:
+    batch_day1 = PublishedBatch(
+        run_id=uuid4(),
+        record_count=10,
+        storage_uri="local:///data/1.jsonl",
+    )
+    mock_service = MagicMock()
+    # 2 days requested, but only 1 day succeeded (1 day failed)
+    mock_service.ingestion_range.execute.return_value = {
+        date(2026, 6, 1): batch_day1,
+    }
+
+    @contextmanager
+    def fake_scope():
+        yield mock_service
+
+    with patch("vn_procurement_lakehouse.entrypoints.cli.ingestion_scope", fake_scope):
+        result = runner.invoke(
+            app, ["ingest-range", "tbmt", "--start", "2026-06-01", "--end", "2026-06-03"]
+        )
+
+    assert result.exit_code == 0
+    assert "Ingested 10 records for 2026-06-01" in result.output
+    assert "Note: 1 of 2 days encountered errors" in result.output

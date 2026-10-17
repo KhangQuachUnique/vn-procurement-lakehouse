@@ -190,4 +190,3 @@ def test_run_repository_fail_with_error_message(
     finally:
         with db_session_factory.begin() as session:
             session.execute(delete(IngestionRunRow).where(IngestionRunRow.run_id == run.run_id))
-

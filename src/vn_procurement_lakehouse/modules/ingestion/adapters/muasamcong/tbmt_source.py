@@ -103,16 +103,29 @@ class TbmtSource:
                 notice_id = item.get("id")
                 assert isinstance(notice_id, str)
 
-                notice_detail = self._api.get_notice_detail(item)
+                try:
+                    notice_detail = self._api.get_notice_detail(item)
+                except Exception as exc:
+                    record = dict(item)
+                    record["_detail_status"] = "ERROR"
+                    record["_detail_note"] = f"{type(exc).__name__}: {exc}"
+                    record["_search_metadata"] = item
+                    record["searchMetadata"] = item
+                    return record
 
                 if not isinstance(notice_detail, dict) or not notice_detail:
-                    raise IncompleteIngestionError(f"Invalid detail for notice {notice_id}")
+                    record = dict(item)
+                    record["_detail_status"] = "EMPTY"
+                    record["_detail_note"] = "Detail response was empty"
+                    record["_search_metadata"] = item
+                    record["searchMetadata"] = item
+                    return record
 
-                # Attach search-level metadata to detail if not present
-                if "searchMetadata" not in notice_detail:
-                    notice_detail["searchMetadata"] = item
-
-                return notice_detail
+                record = dict(notice_detail)
+                record["_detail_status"] = "SUCCESS"
+                record["_search_metadata"] = item
+                record.setdefault("searchMetadata", item)
+                return record
 
             yield from iter_concurrent_details(
                 page.content, _fetch_item_detail, max_workers=self._workers

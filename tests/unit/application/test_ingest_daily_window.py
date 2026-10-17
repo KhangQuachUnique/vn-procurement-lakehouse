@@ -230,9 +230,7 @@ def test_ingest_daily_window_on_record_progress(sample_window: IngestionWindow) 
     )
 
     recorded_counts = []
-    batch = service.execute(
-        sample_window, on_record=lambda count: recorded_counts.append(count)
-    )
+    batch = service.execute(sample_window, on_record=lambda count: recorded_counts.append(count))
 
     assert batch == expected_batch
     assert recorded_counts == [1, 2, 3]

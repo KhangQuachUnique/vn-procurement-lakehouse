@@ -61,9 +61,7 @@ def test_request_budget_defer_pauses_all_workers() -> None:
         waited_total += delay
         current_time += delay
 
-    budget = RequestBudget(
-        max_inflight=3, min_interval=0.0, clock=fake_clock, wait=fake_wait
-    )
+    budget = RequestBudget(max_inflight=3, min_interval=0.0, clock=fake_clock, wait=fake_wait)
 
     # Đóng băng 5 giây
     budget.defer(5.0)
@@ -100,9 +98,7 @@ def test_request_budget_pacing() -> None:
         waited_total += delay
         current_time += delay
 
-    budget = RequestBudget(
-        max_inflight=3, min_interval=0.1, clock=fake_clock, wait=fake_wait
-    )
+    budget = RequestBudget(max_inflight=3, min_interval=0.1, clock=fake_clock, wait=fake_wait)
 
     # Lần 1: Không phải chờ
     with budget.request():
@@ -113,4 +109,3 @@ def test_request_budget_pacing() -> None:
     with budget.request():
         pass
     assert waited_total == pytest.approx(0.1)
-

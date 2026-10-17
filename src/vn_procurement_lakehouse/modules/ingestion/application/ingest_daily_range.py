@@ -1,3 +1,4 @@
+import logging
 from collections.abc import Callable, Iterator
 from datetime import date, timedelta
 
@@ -6,6 +7,8 @@ from vn_procurement_lakehouse.modules.ingestion.application.ingest_daily_window 
 )
 from vn_procurement_lakehouse.modules.ingestion.domain.batch import PublishedBatch
 from vn_procurement_lakehouse.modules.ingestion.domain.window import IngestionWindow
+
+logger = logging.getLogger(__name__)
 
 
 def iter_daily_windows(
@@ -36,14 +39,25 @@ class IngestDateRange:
         end_date_exclusive: date,
         *,
         force: bool = False,
+        continue_on_error: bool = False,
         on_record: Callable[[int], None] | None = None,
     ) -> dict[date, PublishedBatch]:
-        results = {}
+        results: dict[date, PublishedBatch] = {}
 
         for window in iter_daily_windows(resource, start_date, end_date_exclusive):
-            published_batch = self.ingest_daily.execute(
-                window, force=force, on_record=on_record
-            )
-            results[window.start_date] = published_batch
+            try:
+                published_batch = self.ingest_daily.execute(
+                    window, force=force, on_record=on_record
+                )
+                results[window.start_date] = published_batch
+            except Exception as exc:
+                if not continue_on_error:
+                    raise
+                logger.error(
+                    "Error ingesting %s for %s: %s. Continuing to next window.",
+                    resource,
+                    window.start_date,
+                    exc,
+                )
 
         return results

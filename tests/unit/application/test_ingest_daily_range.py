@@ -79,3 +79,42 @@ def test_ingest_date_range_passes_force_and_on_record() -> None:
     _, kwargs = ingest_daily_mock.execute.call_args
     assert kwargs.get("force") is True
     assert kwargs.get("on_record") is mock_on_record
+
+
+def test_ingest_date_range_fails_when_continue_on_error_false() -> None:
+    ingest_daily_mock = MagicMock()
+    batch_day1 = PublishedBatch(run_id=uuid4(), record_count=10, storage_uri="s3://1")
+    ingest_daily_mock.execute.side_effect = [batch_day1, RuntimeError("Network fail")]
+
+    service = IngestDateRange(ingest_daily=ingest_daily_mock)
+    with pytest.raises(RuntimeError, match="Network fail"):
+        service.execute(
+            resource="tbmt",
+            start_date=date(2026, 6, 1),
+            end_date_exclusive=date(2026, 6, 3),
+            continue_on_error=False,
+        )
+
+
+def test_ingest_date_range_continues_when_continue_on_error_true() -> None:
+    ingest_daily_mock = MagicMock()
+    batch_day1 = PublishedBatch(run_id=uuid4(), record_count=10, storage_uri="s3://1")
+    batch_day3 = PublishedBatch(run_id=uuid4(), record_count=30, storage_uri="s3://3")
+    ingest_daily_mock.execute.side_effect = [
+        batch_day1,
+        RuntimeError("Transient error on day 2"),
+        batch_day3,
+    ]
+
+    service = IngestDateRange(ingest_daily=ingest_daily_mock)
+    results = service.execute(
+        resource="tbmt",
+        start_date=date(2026, 6, 1),
+        end_date_exclusive=date(2026, 6, 4),
+        continue_on_error=True,
+    )
+
+    assert len(results) == 2
+    assert results[date(2026, 6, 1)] == batch_day1
+    assert results[date(2026, 6, 3)] == batch_day3
+    assert ingest_daily_mock.execute.call_count == 3

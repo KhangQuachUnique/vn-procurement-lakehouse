@@ -1,4 +1,3 @@
-
 import httpx
 import pytest
 
@@ -90,3 +89,44 @@ def test_client_post_invalid_json_raises_source_response_error() -> None:
     with pytest.raises(SourceResponseError, match="API returned invalid JSON"):
         client.post("services/search", body={})
 
+
+def test_client_post_empty_body_returns_empty_dict() -> None:
+    transport = httpx.MockTransport(
+        lambda request: httpx.Response(
+            200,
+            request=request,
+            text="",
+        )
+    )
+
+    client = MuasamcongClient(
+        base_url="https://api.test",
+        token="test-token",
+        timeout=httpx.Timeout(5.0),
+        retry_policy=RetryPolicy(max_attempts=1),
+        transport=transport,
+    )
+
+    result = client.post("services/detail", body={})
+    assert result == {}
+
+
+def test_client_post_array_empty_body_returns_empty_list() -> None:
+    transport = httpx.MockTransport(
+        lambda request: httpx.Response(
+            200,
+            request=request,
+            text="   ",
+        )
+    )
+
+    client = MuasamcongClient(
+        base_url="https://api.test",
+        token="test-token",
+        timeout=httpx.Timeout(5.0),
+        retry_policy=RetryPolicy(max_attempts=1),
+        transport=transport,
+    )
+
+    result = client.post_array("services/lotOpenDetail", body={})
+    assert result == []

@@ -103,6 +103,13 @@ def ingest_range(
     force: Annotated[
         bool, typer.Option("--force", help="Force re-ingest even if already verified")
     ] = False,
+    continue_on_error: Annotated[
+        bool,
+        typer.Option(
+            "--continue-on-error/--no-continue-on-error",
+            help="Continue with subsequent days if a day encounters an error",
+        ),
+    ] = True,
 ) -> None:
     start_date = parse_date(start)
     end_date = parse_date(end)
@@ -129,7 +136,12 @@ def ingest_range(
                 progress.update(task, completed=count)
 
             results = service.ingestion_range.execute(
-                resource, start_date, end_date, force=force, on_record=_on_record
+                resource,
+                start_date,
+                end_date,
+                force=force,
+                continue_on_error=continue_on_error,
+                on_record=_on_record,
             )
 
     for day, batch in results.items():
@@ -139,6 +151,12 @@ def ingest_range(
             typer.echo(f"Ingested {batch.record_count} records for {day}")
             typer.echo(f"Run ID: {batch.run_id}")
             typer.echo(f"Bronze: {batch.storage_uri}")
+
+    total_days = (end_date - start_date).days
+    if len(results) < total_days:
+        typer.echo(
+            f"Note: {total_days - len(results)} of {total_days} days encountered errors. Check control.ingestion_runs for error details."
+        )
 
 
 @app.command(name="bronze-verify-run", help="Verify ingested data in the lakehouse")
@@ -277,4 +295,3 @@ def coverage(
         f"[dim red]{missing_days} missing[/dim red] | "
         f"[red]{failed_days} failed[/red]"
     )
-

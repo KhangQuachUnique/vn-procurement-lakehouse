@@ -107,10 +107,23 @@ class KhlcntSource:
                 plan_id = item.get("id")
                 assert isinstance(plan_id, str)
 
-                plan_detail = self._api.get_plan_detail(plan_id)
+                try:
+                    plan_detail = self._api.get_plan_detail(plan_id)
+                except Exception as exc:
+                    record = dict(item)
+                    record["_detail_status"] = "ERROR"
+                    record["_detail_note"] = f"{type(exc).__name__}: {exc}"
+                    record["_search_metadata"] = item
+                    record["searchMetadata"] = item
+                    return record
 
                 if not isinstance(plan_detail, dict) or not plan_detail:
-                    raise IncompleteIngestionError(f"Invalid detail for plan {plan_id}")
+                    record = dict(item)
+                    record["_detail_status"] = "EMPTY"
+                    record["_detail_note"] = "Detail response was empty"
+                    record["_search_metadata"] = item
+                    record["searchMetadata"] = item
+                    return record
 
                 # Enrich child bid packages if present
                 raw_packages = plan_detail.get("bidpPlanDetailToProjectList")
@@ -119,15 +132,18 @@ class KhlcntSource:
                         if isinstance(package, dict):
                             package_id = package.get("id")
                             if isinstance(package_id, str) and package_id.strip():
-                                pkg_detail = self._api.get_bid_package_detail(package_id)
-                                if isinstance(pkg_detail, dict) and pkg_detail:
-                                    package["detail"] = pkg_detail
+                                try:
+                                    pkg_detail = self._api.get_bid_package_detail(package_id)
+                                    if isinstance(pkg_detail, dict) and pkg_detail:
+                                        package["detail"] = pkg_detail
+                                except Exception:
+                                    pass
 
-                # Attach search-level metadata to detail if not present
-                if "searchMetadata" not in plan_detail:
-                    plan_detail["searchMetadata"] = item
-
-                return plan_detail
+                record = dict(plan_detail)
+                record["_detail_status"] = "SUCCESS"
+                record["_search_metadata"] = item
+                record.setdefault("searchMetadata", item)
+                return record
 
             yield from iter_concurrent_details(
                 page.content, _fetch_item_detail, max_workers=self._workers

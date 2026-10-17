@@ -261,4 +261,3 @@ def coverage_scope() -> Generator[CoverageService]:
         )
     finally:
         engine.dispose()
-

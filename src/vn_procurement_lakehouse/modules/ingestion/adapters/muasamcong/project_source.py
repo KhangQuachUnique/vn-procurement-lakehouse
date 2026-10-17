@@ -104,12 +104,29 @@ class ProjectSource:
                 project_id = item.get("id")
                 assert isinstance(project_id, str)
 
-                detail = self._api.get_project_detail(project_id)
+                try:
+                    detail = self._api.get_project_detail(project_id)
+                except Exception as exc:
+                    record = dict(item)
+                    record["_detail_status"] = "ERROR"
+                    record["_detail_note"] = f"{type(exc).__name__}: {exc}"
+                    record["_search_metadata"] = item
+                    record["searchMetadata"] = item
+                    return record
 
                 if not isinstance(detail, dict) or not detail:
-                    raise IncompleteIngestionError(f"Invalid detail for project {project_id}")
+                    record = dict(item)
+                    record["_detail_status"] = "EMPTY"
+                    record["_detail_note"] = "Detail response was empty"
+                    record["_search_metadata"] = item
+                    record["searchMetadata"] = item
+                    return record
 
-                return detail
+                record = dict(detail)
+                record["_detail_status"] = "SUCCESS"
+                record["_search_metadata"] = item
+                record.setdefault("searchMetadata", item)
+                return record
 
             yield from iter_concurrent_details(
                 page.content, _fetch_item_detail, max_workers=self._workers

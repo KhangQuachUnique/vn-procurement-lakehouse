@@ -191,8 +191,13 @@ def test_fetch_single_page_success(mock_api: MagicMock, project_window: Ingestio
     records = list(source.fetch(project_window))
 
     assert len(records) == 2
-    assert records[0] == {"id": "PRJ001", "name": "Dự án Nâng cấp Đường A"}
-    assert records[1] == {"id": "PRJ002", "name": "Dự án Xây dựng Trường B"}
+    assert records[0]["id"] == "PRJ001"
+    assert records[0]["name"] == "Dự án Nâng cấp Đường A"
+    assert records[0]["_detail_status"] == "SUCCESS"
+    assert records[0]["_search_metadata"] == {"id": "PRJ001"}
+    assert records[1]["id"] == "PRJ002"
+    assert records[1]["name"] == "Dự án Xây dựng Trường B"
+    assert records[1]["_detail_status"] == "SUCCESS"
 
     mock_api.search.assert_called_once_with(
         page_number=0,
@@ -500,11 +505,11 @@ def test_fetch_duplicate_project_id_raises(
 
 
 @pytest.mark.parametrize("invalid_detail", [None, {}, "string", [1, 2]])
-def test_fetch_invalid_project_detail_raises(
+def test_fetch_invalid_project_detail_falls_back_to_search_item(
     mock_api: MagicMock, project_window: IngestionWindow, invalid_detail: Any
 ) -> None:
     mock_api.search.return_value = make_search_page(
-        content=[{"id": "PRJ001"}],
+        content=[{"id": "PRJ001", "name": "Project Alpha"}],
         total_elements=1,
         total_pages=1,
         current_page=0,
@@ -515,8 +520,37 @@ def test_fetch_invalid_project_detail_raises(
     mock_api.get_project_detail.return_value = invalid_detail
 
     source = ProjectSource(mock_api, page_size=50)
-    with pytest.raises(IncompleteIngestionError, match="Invalid detail for project PRJ001"):
-        list(source.fetch(project_window))
+    records = list(source.fetch(project_window))
+
+    assert len(records) == 1
+    assert records[0]["id"] == "PRJ001"
+    assert records[0]["_detail_status"] == "EMPTY"
+    assert records[0]["_search_metadata"]["name"] == "Project Alpha"
+    assert records[0]["searchMetadata"]["name"] == "Project Alpha"
+
+
+def test_fetch_project_detail_exception_falls_back_to_search_item(
+    mock_api: MagicMock, project_window: IngestionWindow
+) -> None:
+    mock_api.search.return_value = make_search_page(
+        content=[{"id": "PRJ001", "name": "Project Beta"}],
+        total_elements=1,
+        total_pages=1,
+        current_page=0,
+        page_size=50,
+        first=True,
+        last=True,
+    )
+    mock_api.get_project_detail.side_effect = RuntimeError("Connection timeout")
+
+    source = ProjectSource(mock_api, page_size=50)
+    records = list(source.fetch(project_window))
+
+    assert len(records) == 1
+    assert records[0]["id"] == "PRJ001"
+    assert records[0]["_detail_status"] == "ERROR"
+    assert "RuntimeError: Connection timeout" in records[0]["_detail_note"]
+    assert records[0]["_search_metadata"]["name"] == "Project Beta"
 
 
 # --- Total Records Count Validation Tests ---

@@ -72,6 +72,9 @@ class BidOpeningApi:
         notify_payload = self._client.post(NOTIFY_PATH, base_body)
         roundmng_payload = self._client.post(ROUNDMNG_PATH, base_body)
 
+        if not notify_payload and not roundmng_payload:
+            return {}
+
         result: dict[str, Any] = {
             "searchMetadata": search_item,
             "notify": notify_payload,

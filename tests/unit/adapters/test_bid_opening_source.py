@@ -271,3 +271,49 @@ def test_bid_opening_source_raises_on_count_mismatch(
         IncompleteIngestionError, match="Incomplete ingestion: expected 5, received 1"
     ):
         list(source.fetch(bid_opening_window))
+
+
+def test_bid_opening_source_empty_detail_falls_back_to_search_metadata(
+    bid_opening_window: IngestionWindow,
+) -> None:
+    api = MagicMock(spec=BidOpeningApi)
+    api.search.return_value = make_search_page(
+        [{"notifyId": "OPEN001", "notifyNo": "IB001"}],
+        total_elements=1,
+        total_pages=1,
+        current_page=0,
+        page_size=50,
+    )
+    api.get_bid_opening_detail.return_value = {}
+
+    source = BidOpeningSource(api=api, page_size=50)
+    records = list(source.fetch(bid_opening_window))
+
+    assert len(records) == 1
+    assert records[0]["notifyId"] == "OPEN001"
+    assert records[0]["_detail_status"] == "EMPTY"
+    assert records[0]["_search_metadata"]["notifyNo"] == "IB001"
+    assert records[0]["searchMetadata"]["notifyNo"] == "IB001"
+
+
+def test_bid_opening_source_error_detail_falls_back_to_search_metadata(
+    bid_opening_window: IngestionWindow,
+) -> None:
+    api = MagicMock(spec=BidOpeningApi)
+    api.search.return_value = make_search_page(
+        [{"notifyId": "OPEN001", "notifyNo": "IB001"}],
+        total_elements=1,
+        total_pages=1,
+        current_page=0,
+        page_size=50,
+    )
+    api.get_bid_opening_detail.side_effect = RuntimeError("Service unavailable")
+
+    source = BidOpeningSource(api=api, page_size=50)
+    records = list(source.fetch(bid_opening_window))
+
+    assert len(records) == 1
+    assert records[0]["notifyId"] == "OPEN001"
+    assert records[0]["_detail_status"] == "ERROR"
+    assert "RuntimeError: Service unavailable" in records[0]["_detail_note"]
+    assert records[0]["_search_metadata"]["notifyNo"] == "IB001"

@@ -222,11 +222,11 @@ def test_fetch_duplicate_plan_id_raises(
         list(source.fetch(khlcnt_window))
 
 
-def test_fetch_invalid_plan_detail_raises(
+def test_fetch_invalid_plan_detail_falls_back_to_search_item(
     mock_api: MagicMock, khlcnt_window: IngestionWindow
 ) -> None:
     mock_api.search.return_value = make_search_page(
-        content=[{"id": "PLAN001"}],
+        content=[{"id": "PLAN001", "name": "Plan Alpha"}],
         total_elements=1,
         total_pages=1,
         current_page=0,
@@ -235,8 +235,35 @@ def test_fetch_invalid_plan_detail_raises(
     mock_api.get_plan_detail.return_value = {}  # Empty/invalid dict
 
     source = KhlcntSource(mock_api)
-    with pytest.raises(IncompleteIngestionError, match="Invalid detail for plan PLAN001"):
-        list(source.fetch(khlcnt_window))
+    records = list(source.fetch(khlcnt_window))
+
+    assert len(records) == 1
+    assert records[0]["id"] == "PLAN001"
+    assert records[0]["_detail_status"] == "EMPTY"
+    assert records[0]["_search_metadata"]["name"] == "Plan Alpha"
+    assert records[0]["searchMetadata"]["name"] == "Plan Alpha"
+
+
+def test_fetch_plan_detail_exception_falls_back_to_search_item(
+    mock_api: MagicMock, khlcnt_window: IngestionWindow
+) -> None:
+    mock_api.search.return_value = make_search_page(
+        content=[{"id": "PLAN001", "name": "Plan Beta"}],
+        total_elements=1,
+        total_pages=1,
+        current_page=0,
+        page_size=50,
+    )
+    mock_api.get_plan_detail.side_effect = RuntimeError("API down")
+
+    source = KhlcntSource(mock_api)
+    records = list(source.fetch(khlcnt_window))
+
+    assert len(records) == 1
+    assert records[0]["id"] == "PLAN001"
+    assert records[0]["_detail_status"] == "ERROR"
+    assert "RuntimeError: API down" in records[0]["_detail_note"]
+    assert records[0]["_search_metadata"]["name"] == "Plan Beta"
 
 
 def test_fetch_incomplete_ingestion_count_mismatch_raises(

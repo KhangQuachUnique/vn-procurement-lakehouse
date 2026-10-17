@@ -115,9 +115,7 @@ class MuasamcongClient:
         self._retry_policy = retry_policy
         self._sleep = sleep
         self._budget = (
-            budget
-            if budget is not None
-            else RequestBudget(max_inflight=3, min_interval=0.05)
+            budget if budget is not None else RequestBudget(max_inflight=3, min_interval=0.05)
         )
 
         ssl_verify = verify if verify is not None else create_default_ssl_context()
@@ -211,6 +209,10 @@ class MuasamcongClient:
 
             raise_for_status_with_detail(response)
 
+            content = response.content.strip()
+            if not content:
+                return None
+
             try:
                 return response.json()
             except ValueError as exc:
@@ -224,6 +226,8 @@ class MuasamcongClient:
         body: Any,
     ) -> dict[str, Any]:
         payload = self._post_raw(path, body)
+        if payload is None:
+            return {}
         if not isinstance(payload, dict):
             raise SourceResponseError("API JSON response must be an object")
         return payload
@@ -234,6 +238,8 @@ class MuasamcongClient:
         body: Any,
     ) -> list[Any]:
         payload = self._post_raw(path, body)
+        if payload is None:
+            return []
         if not isinstance(payload, list):
             raise SourceResponseError("API JSON response must be a list")
         return payload

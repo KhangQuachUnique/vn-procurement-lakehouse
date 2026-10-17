@@ -244,3 +244,49 @@ def test_tbmt_source_raises_on_count_mismatch(tbmt_window: IngestionWindow) -> N
         IncompleteIngestionError, match="Incomplete ingestion: expected 5, received 1"
     ):
         list(source.fetch(tbmt_window))
+
+
+def test_tbmt_source_empty_detail_falls_back_to_search_metadata(
+    tbmt_window: IngestionWindow,
+) -> None:
+    api = MagicMock(spec=TbmtApi)
+    api.search.return_value = make_search_page(
+        [{"id": "TBMT001", "bidName": "Notice Test"}],
+        total_elements=1,
+        total_pages=1,
+        current_page=0,
+        page_size=50,
+    )
+    api.get_notice_detail.return_value = {}
+
+    source = TbmtSource(api=api, page_size=50)
+    records = list(source.fetch(tbmt_window))
+
+    assert len(records) == 1
+    assert records[0]["id"] == "TBMT001"
+    assert records[0]["_detail_status"] == "EMPTY"
+    assert records[0]["_search_metadata"]["bidName"] == "Notice Test"
+    assert records[0]["searchMetadata"]["bidName"] == "Notice Test"
+
+
+def test_tbmt_source_error_detail_falls_back_to_search_metadata(
+    tbmt_window: IngestionWindow,
+) -> None:
+    api = MagicMock(spec=TbmtApi)
+    api.search.return_value = make_search_page(
+        [{"id": "TBMT001", "bidName": "Notice Error"}],
+        total_elements=1,
+        total_pages=1,
+        current_page=0,
+        page_size=50,
+    )
+    api.get_notice_detail.side_effect = RuntimeError("Detail fetch timeout")
+
+    source = TbmtSource(api=api, page_size=50)
+    records = list(source.fetch(tbmt_window))
+
+    assert len(records) == 1
+    assert records[0]["id"] == "TBMT001"
+    assert records[0]["_detail_status"] == "ERROR"
+    assert "RuntimeError: Detail fetch timeout" in records[0]["_detail_note"]
+    assert records[0]["_search_metadata"]["bidName"] == "Notice Error"

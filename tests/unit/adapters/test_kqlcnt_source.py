@@ -207,3 +207,49 @@ def test_kqlcnt_source_raises_on_count_mismatch(kqlcnt_window: IngestionWindow) 
         IncompleteIngestionError, match="Incomplete ingestion: expected 5, received 1"
     ):
         list(source.fetch(kqlcnt_window))
+
+
+def test_kqlcnt_source_empty_detail_falls_back_to_search_metadata(
+    kqlcnt_window: IngestionWindow,
+) -> None:
+    api = MagicMock(spec=KqlcntApi)
+    api.search.return_value = make_search_page(
+        [{"inputResultId": "RES001", "notifyNo": "IB001"}],
+        total_elements=1,
+        total_pages=1,
+        current_page=0,
+        page_size=50,
+    )
+    api.get_result_detail.return_value = {}
+
+    source = KqlcntSource(api=api, page_size=50)
+    records = list(source.fetch(kqlcnt_window))
+
+    assert len(records) == 1
+    assert records[0]["inputResultId"] == "RES001"
+    assert records[0]["_detail_status"] == "EMPTY"
+    assert records[0]["_search_metadata"]["notifyNo"] == "IB001"
+    assert records[0]["searchMetadata"]["notifyNo"] == "IB001"
+
+
+def test_kqlcnt_source_error_detail_falls_back_to_search_metadata(
+    kqlcnt_window: IngestionWindow,
+) -> None:
+    api = MagicMock(spec=KqlcntApi)
+    api.search.return_value = make_search_page(
+        [{"inputResultId": "RES001", "notifyNo": "IB001"}],
+        total_elements=1,
+        total_pages=1,
+        current_page=0,
+        page_size=50,
+    )
+    api.get_result_detail.side_effect = RuntimeError("API server error")
+
+    source = KqlcntSource(api=api, page_size=50)
+    records = list(source.fetch(kqlcnt_window))
+
+    assert len(records) == 1
+    assert records[0]["inputResultId"] == "RES001"
+    assert records[0]["_detail_status"] == "ERROR"
+    assert "RuntimeError: API server error" in records[0]["_detail_note"]
+    assert records[0]["_search_metadata"]["notifyNo"] == "IB001"

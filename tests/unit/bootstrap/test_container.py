@@ -101,4 +101,3 @@ def test_coverage_scope_wires_and_disposes(mock_create_engine: MagicMock) -> Non
         assert isinstance(service.data_coverage.repository, PostgresRunRepository)
 
     mock_engine.dispose.assert_called_once()
-
