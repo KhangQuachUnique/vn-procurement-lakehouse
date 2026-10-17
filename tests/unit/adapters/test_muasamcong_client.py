@@ -130,3 +130,77 @@ def test_client_post_array_empty_body_returns_empty_list() -> None:
 
     result = client.post_array("services/lotOpenDetail", body={})
     assert result == []
+
+
+def test_client_post_html_response_retries_and_succeeds() -> None:
+    attempts = 0
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            return httpx.Response(200, request=request, text="<html><body>WAF Error</body></html>")
+        return httpx.Response(200, request=request, text='{"success": true}')
+
+    transport = httpx.MockTransport(handler)
+    client = MuasamcongClient(
+        base_url="https://api.test",
+        token="test-token",
+        timeout=httpx.Timeout(5.0),
+        retry_policy=RetryPolicy(max_attempts=3, base_delay_seconds=0.01, max_delay_seconds=0.05),
+        transport=transport,
+        sleep=lambda _: None,
+    )
+
+    result = client.post("services/detail", body={})
+    assert result == {"success": True}
+    assert attempts == 2
+
+
+def test_client_post_waf_400_html_retries_and_succeeds() -> None:
+    attempts = 0
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            return httpx.Response(400, request=request, text="<html><meta url=/c></html>")
+        return httpx.Response(200, request=request, text='{"project": "OK"}')
+
+    transport = httpx.MockTransport(handler)
+    client = MuasamcongClient(
+        base_url="https://api.test",
+        token="test-token",
+        timeout=httpx.Timeout(5.0),
+        retry_policy=RetryPolicy(max_attempts=3, base_delay_seconds=0.01, max_delay_seconds=0.05),
+        transport=transport,
+        sleep=lambda _: None,
+    )
+
+    result = client.post("services/detail", body={})
+    assert result == {"project": "OK"}
+    assert attempts == 2
+
+
+def test_client_post_invalid_json_exhausts_retries_and_raises() -> None:
+    attempts = 0
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal attempts
+        attempts += 1
+        return httpx.Response(200, request=request, text="<html>Server broken</html>")
+
+    transport = httpx.MockTransport(handler)
+    client = MuasamcongClient(
+        base_url="https://api.test",
+        token="test-token",
+        timeout=httpx.Timeout(5.0),
+        retry_policy=RetryPolicy(max_attempts=3, base_delay_seconds=0.01, max_delay_seconds=0.05),
+        transport=transport,
+        sleep=lambda _: None,
+    )
+
+    with pytest.raises(SourceResponseError, match="API returned invalid JSON"):
+        client.post("services/detail", body={})
+
+    assert attempts == 3

@@ -185,23 +185,18 @@ class MuasamcongClient:
                 self._sleep(self._backoff(attempt))
                 continue
 
+            is_waf_html_block = response.status_code == 400 and b"<html" in response.content.lower()
             if (
-                response.status_code in RETRYABLE_STATUS_CODES
-                and attempt < self._retry_policy.max_attempts
-            ):
+                response.status_code in RETRYABLE_STATUS_CODES or is_waf_html_block
+            ) and attempt < self._retry_policy.max_attempts:
                 server_delay = parse_retry_after(response.headers.get("Retry-After"))
 
-                if server_delay is not None:
-                    self._budget.defer(server_delay)
-                elif response.status_code == 429:
-                    self._budget.defer(self._retry_policy.base_delay_seconds)
-
-                if server_delay is not None and server_delay > self._retry_policy.max_delay_seconds:
-                    raise_for_status_with_detail(response)
+                cooldown = max(self._retry_policy.base_delay_seconds, 1.5)
+                self._budget.defer(server_delay if server_delay is not None else cooldown)
 
                 delay = max(
                     self._backoff(attempt),
-                    server_delay or 0.0,
+                    server_delay or cooldown,
                 )
 
                 self._sleep(delay)
@@ -216,6 +211,13 @@ class MuasamcongClient:
             try:
                 return response.json()
             except ValueError as exc:
+                if attempt < self._retry_policy.max_attempts:
+                    cooldown = max(self._retry_policy.base_delay_seconds, 1.5)
+                    self._budget.defer(cooldown)
+                    delay = max(self._backoff(attempt), cooldown)
+                    self._sleep(delay)
+                    continue
+
                 raise SourceResponseError("API returned invalid JSON") from exc
 
         raise RuntimeError("Unexpected retry state")
